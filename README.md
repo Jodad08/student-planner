@@ -53,3 +53,4 @@ python3 harness.py scan
 | `evals/`, `EVALS.md` | Eval runner and results |
 | `decisions.md` | Every design decision, with evidence |
 | `plan.md`, `architecture.md`, `prompt.md` | Planning documents |
+___
