@@ -4,7 +4,7 @@ A degree planner for SF State's B.S. Computer Science, built on the 2026–27 Bu
 board. A rules engine checks every move: prerequisite order, corequisites, units per semester, standing and requirement
 groups. It draws broken prerequisites as red lines. An AI planner (Gemini, or a mock without a key) proposes a full plan
 from a career goal. The engine checks that plan before you see it, and falls back to a deterministic planner when the
-model's plan still breaks rules after 2 repairs.
+model's plan still breaks rules after 2 repairs
 
 Unofficial. Nothing here is advisor-verified yet.
 
