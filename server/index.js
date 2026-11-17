@@ -7,8 +7,30 @@ const { evaluate } = require("./evaluate.js");
 const runs = require("./runs.js");
 const gemini = require("./gemini.js");
 
+// /api/plan and /api/evaluate call the AI provider with the server's API key, so anyone who
+// can reach the server can spend it. Cap AI calls per client IP (in memory, per process).
+// AI_RATE_LIMIT_PER_HOUR=0 turns the cap off. Behind a proxy, set TRUST_PROXY=1 so req.ip
+// is the real client address.
+function aiRateLimit(perHour) {
+  const hits = new Map();
+  return (req, res, next) => {
+    if (!perHour) return next();
+    const now = Date.now();
+    const recent = (hits.get(req.ip) || []).filter(t => now - t < 3600e3);
+    if (recent.length >= perHour) {
+      return res.status(429).json({ error: "Too many requests. Try again later.", code: "RATE_LIMITED" });
+    }
+    recent.push(now);
+    hits.set(req.ip, recent);
+    if (hits.size > 10000) hits.clear();
+    next();
+  };
+}
+
 function createApp(deps = {}) {
   const app = express();
+  if (process.env.TRUST_PROXY) app.set("trust proxy", 1);
+  const limitAi = aiRateLimit(deps.aiRateLimitPerHour ?? Number(process.env.AI_RATE_LIMIT_PER_HOUR ?? 30));
   app.use(express.json({ limit: "1mb" }));
   app.use(express.static(path.join(D.ROOT, "web")));
 
@@ -32,7 +54,7 @@ function createApp(deps = {}) {
     return r ? res.json(r) : res.status(404).json({ error: "Run not found", code: "RUN_NOT_FOUND" });
   });
 
-  app.post("/api/plan", async (req, res, next) => {
+  app.post("/api/plan", limitAi, async (req, res, next) => {
     try {
       const out = await aiPlan(req.body, deps);
       const scores = runs.scorePlan(out.plan, out.report, Planner().directionScores(out.plan, D.catalog, D.careerTags), out.attempts);
@@ -42,7 +64,7 @@ function createApp(deps = {}) {
       res.json(Object.assign({}, out, { runId: run.run_id, aiProvider: gemini.provider() }));
     } catch (e) { next(e); }
   });
-  app.post("/api/evaluate", async (req, res, next) => {
+  app.post("/api/evaluate", limitAi, async (req, res, next) => {
     try {
       const out = await evaluate(req.body, deps);
       const scores = runs.scorePlan(req.body.plan, out.report, out.directionScores, null);
